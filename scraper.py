@@ -1,126 +1,217 @@
+# -*- coding: utf-8 -*-
+"""
+Project: Amazon Egypt Data Scraper
+Author: Your Team
+Description: سكربت متقدم لسحب بيانات منتجات أمازون مصر
+"""
+
 import requests
 from bs4 import BeautifulSoup
-import random
-import time
 import pandas as pd
+import re
+import time
+import random
+import logging
+from datetime import datetime
+from fake_useragent import UserAgent
+from urllib.robotparser import RobotFileParser
+import sys
+import io
 
-# 1. User-Agent rotation to prevent getting blocked by Amazon
-# قائمة متغيرة لتعريف المتصفح عشان أمازون ما يكتشفش إنه بوت
-USER_AGENTS = [
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36",
-    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-]
+# --- إصلاح مشكلة الإيموجي في ويندوز ---
+sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
+sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8')
 
-# 2. Quality Control Configuration
-# الكلمات اللي لازم تكون موجودة لضمان إن المنتج موبايل فعلاً
-REQUIRED_KEYWORDS = ["phone", "smartphone", "mobile", "galaxy", "iphone", "pixel", "nokia", "motorola", "realme", "xiaomi"]
-# الكلمات المستبعدة (الإكسسوارات والموديلات الوهمية أو التقليد)
-BLOCKED_KEYWORDS = ["case", "cover", "charger", "cable", "adapter", "glass", "screen protector", "s26", "s27", "c24", "fake", "dummy"]
+# --- 1. CONFIGURATION ---
+CONFIG = {
+    "BASE_URL": "https://www.amazon.eg",
+    "SEARCH_QUERY": "/s?k=laptop",  # عدل كلمة البحث هنا
+    "PAGES_TO_SCRAPE": 3,
+    "DELAY_RANGE": (10, 15),  # زدنا التأخير عشان أمازون ما يحظرش
+    "OUTPUT_FILE": f"laptop_data_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
+    "RETRY_ATTEMPTS": 3,
+    "PROXIES": {},
+    "PROXY_LIST": []
+}
 
-def run_advanced_scraper(category_name, search_url, num_pages=3):
-    """
-    Scrapes Amazon products with strict data validation.
-    وظيفة السحب مع التحقق الصارم من جودة البيانات
-    """
-    final_dataset = []
-    
-    for current_page in range(1, num_pages + 1):
-        print(f"--- Scraping Page {current_page} of {num_pages} ---")
-        
-        headers = {
-            "User-Agent": random.choice(USER_AGENTS),
-            "Accept-Language": "en-US,en;q=0.9"
-        }
-        
-        # Adjusting the URL for pagination
-        # تعديل الرابط للانتقال بين الصفحات
-        paginated_url = f"{search_url}&page={current_page}"
-        
+# --- إعداد الـ Logging بدون إيموجي ---
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler("scraper_log.log", encoding='utf-8'),
+        logging.StreamHandler()
+    ]
+)
+
+class AmazonProScraper:
+    def __init__(self):
+        self.ua = UserAgent()
+        self.session = requests.Session()
+        self.results = []
+
+    def check_robots_txt(self, url):
         try:
-            response = requests.get(paginated_url, headers=headers, timeout=15)
-            if response.status_code != 200:
-                print(f"[Warning] Failed to access page {current_page}. Status Code: {response.status_code}")
+            rp = RobotFileParser()
+            rp.set_url(f"{CONFIG['BASE_URL']}/robots.txt")
+            rp.read()
+            return rp.can_fetch("*", url)
+        except: 
+            return True
+
+    def detect_captcha(self, response_text):
+        captcha_indicators = [
+            'captcha', 'robot check', 'verify you are human',
+            'challenge', 'cloudflare', 'turnstile', 'please verify'
+        ]
+        return any(ind in response_text.lower() for ind in captcha_indicators)
+
+    def get_headers(self):
+        return {
+            "User-Agent": self.ua.random,
+            "Accept-Language": "en-US,en;q=0.9",
+            "Referer": "https://www.google.com/",
+            "Connection": "keep-alive"
+        }
+
+    def clean_price(self, price_str):
+        if not price_str: 
+            return 0.0
+        try:
+            clean_val = re.sub(r'[^\d.]', '', price_str)
+            return float(clean_val)
+        except (ValueError, TypeError):
+            return 0.0
+
+    def validate_product(self, product):
+        # تخفيف شروط التحقق عشان نجمع بيانات أكثر
+        if not product.get("Title"):
+            return False
+        if len(product.get("Title", "")) < 3:  # قللنا من 5 لـ 3
+            return False
+        if product.get("Price_EGP", 0) <= 0:
+            return False
+        if not (0 <= product.get("Rating", 0) <= 5):
+            return False
+        return True
+
+    def parse_product(self, item):
+        try:
+            name_tag = item.h2
+            if not name_tag: 
+                return None
+
+            price_whole = item.find("span", "a-price-whole")
+            price_fraction = item.find("span", "a-price-fraction")
+            
+            raw_price = "0"
+            if price_whole:
+                raw_price = price_whole.text.strip()
+                if price_fraction:
+                    raw_price += f".{price_fraction.text.strip()}"
+
+            rating_tag = item.find("span", "a-icon-alt")
+            rating = rating_tag.text.split()[0] if rating_tag else "0"
+
+            title = name_tag.text.strip()
+            if len(title) < 3: 
+                return None 
+
+            return {
+                "Title": title,
+                "Price_EGP": self.clean_price(raw_price),
+                "Rating": float(rating) if rating != "0" else 0.0,
+                "Scraped_At": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            }
+        except Exception as e:
+            logging.warning(f"Failed to parse item: {e}")
+            return None
+
+    def get_proxy(self):
+        if CONFIG["PROXY_LIST"]:
+            return random.choice(CONFIG["PROXY_LIST"])
+        return None
+
+    def run(self):
+        logging.info("Starting Pulse System: Data Ingestion Engine...")
+        
+        for page in range(1, CONFIG["PAGES_TO_SCRAPE"] + 1):
+            url = f"{CONFIG['BASE_URL']}{CONFIG['SEARCH_QUERY']}&page={page}"
+            
+            if not self.check_robots_txt(url):
+                logging.warning(f"Robots.txt disallows scraping page {page}")
                 continue
-                
-            soup = BeautifulSoup(response.content, "html.parser")
-            # Searching for the specific Amazon product containers
-            # البحث عن الحاويات الخاصة بمنتجات أمازون
-            items = soup.find_all("div", {"data-component-type": "s-search-result"})
-            
-            valid_counts = 0
-            for item in items:
-                # Extract Product Name
-                name_element = item.h2
-                if not name_element: continue
-                
-                full_name = name_element.text.strip()
-                name_lower = full_name.lower()
-                
-                # --- DATA VALIDATION LOGIC ---
-                # 1. Block accessories and fake models
-                # استبعاد الإكسسوارات والموديلات غير المنطقية
-                if any(blocked in name_lower for blocked in BLOCKED_KEYWORDS):
-                    continue
-                
-                # 2. Ensure it is actually a smartphone
-                # التأكد إن المنتج موبايل مش حاجة تانية
-                if not any(req in name_lower for req in REQUIRED_KEYWORDS):
-                    continue
-                
-                # Extract Price (Numerical value only)
-                price_element = item.find("span", "a-price-whole")
-                raw_price = price_element.text.replace(",", "").strip() if price_element else "0"
-                
-                # Extract Rating
-                rating_element = item.find("span", "a-icon-alt")
-                # Format: "4.5 out of 5 stars" -> we take "4.5"
-                raw_rating = rating_element.text.split()[0] if rating_element else "0"
 
-                # Save only if price exists (Discard out-of-stock or invalid data)
-                # حفظ البيانات فقط لو السعر موجود عشان نتجنب الداتا الناقصة
-                if raw_price != "0":
-                    final_dataset.append({
-                        "Category": category_name,
-                        "Product_Name": full_name,
-                        "Price_EGP": int(raw_price),
-                        "Rating": float(raw_rating),
-                        "Source": "Amazon Egypt",
-                        "Timestamp": time.strftime("%Y-%m-%d %H:%M")
-                    })
-                    valid_counts += 1
-            
-            print(f"[Success] Found {valid_counts} valid smartphones on page {current_page}.")
-            
-            # Anti-Ban delay: simulates human browsing behavior
-            # تأخير زمني عشوائي لمنع الحظر
-            wait_time = random.uniform(2, 5)
+            success = False
+            for attempt in range(CONFIG["RETRY_ATTEMPTS"]):
+                try:
+                    proxy = self.get_proxy()
+                    proxies = {
+                        "http": proxy,
+                        "https": proxy
+                    } if proxy else {}
+
+                    response = self.session.get(
+                        url, 
+                        headers=self.get_headers(), 
+                        proxies=proxies,
+                        timeout=20
+                    )
+                    
+                    if self.detect_captcha(response.text):
+                        logging.error(f"Captcha detected on page {page}! Proxy might be flagged.")
+                        break 
+
+                    if response.status_code == 200:
+                        self.process_page(response.content)
+                        success = True
+                        break
+                    else:
+                        logging.warning(f"Attempt {attempt+1} failed: Status {response.status_code}")
+                        
+                except Exception as e:
+                    logging.error(f"Network error on page {page}: {e}")
+                
+                time.sleep(10 * (attempt + 1)) 
+
+            if not success: 
+                logging.warning(f"Page {page} failed after {CONFIG['RETRY_ATTEMPTS']} attempts")
+                continue
+
+            wait_time = random.uniform(*CONFIG["DELAY_RANGE"])
+            logging.info(f"Page {page} done. Sleeping for {wait_time:.2f}s...")
             time.sleep(wait_time)
-            
-        except Exception as error:
-            print(f"[Error] An anomaly occurred on page {current_page}: {error}")
 
-    # Exporting results to CSV using Pandas
-    # تصدير البيانات النهائية لملف اكسل
-    if final_dataset:
-        df = pd.DataFrame(final_dataset)
-        filename = f"raw_data_{category_name.lower()}_{int(time.time())}.csv"
-        df.to_csv(filename, index=False, encoding="utf-8-sig")
-        print("\n" + "="*40)
-        print(f"PROCESS COMPLETED!")
-        print(f"Total Clean Records: {len(df)}")
-        print(f"File Saved as: {filename}")
-        print("="*40)
-    else:
-        print("[Notice] No data matched your filters. Check the URL or Keywords.")
+        self.export_data()
 
-# --- MAIN EXECUTION ---
+    def process_page(self, html_content):
+        soup = BeautifulSoup(html_content, "html.parser")
+        items = soup.find_all("div", {"data-component-type": "s-search-result"})
+        
+        # لو مش جاب حاجة، جرب selector تاني
+        if not items:
+            items = soup.find_all("div", class_="s-result-item")
+        
+        logging.info(f"Items Found: {len(items)}")
+        
+        page_data_count = 0
+        for item in items:
+            product = self.parse_product(item)
+            if product and self.validate_product(product):
+                self.results.append(product)
+                page_data_count += 1
+        
+        logging.info(f"Extracted {page_data_count} valid products.")
+
+    def export_data(self):
+        if not self.results:
+            logging.error("No data collected.")
+            return
+        df = pd.DataFrame(self.results)
+        df.drop_duplicates(subset=['Title'], keep='first', inplace=True)
+        df.to_csv(CONFIG["OUTPUT_FILE"], index=False, encoding="utf-8-sig")
+        logging.info(f"DONE! Total Unique Records: {len(df)}")
+
 if __name__ == "__main__":
-    print("--- PULSE SYSTEM: DATA INGESTION ENGINE ---")
-    
-    # Example Amazon Egypt search link for smartphones
-    # رابط تجريبي للبحث عن الموبايلات في أمازون مصر
-    AMAZON_URL = "https://www.amazon.eg/s?k=smartphones" 
-    
-    # Start the process
-    run_advanced_scraper(category_name="Smartphones", search_url=AMAZON_URL, num_pages=2)
+    scraper = AmazonProScraper()
+    scraper.run()
