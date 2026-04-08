@@ -1,3 +1,4 @@
+
 from playwright.sync_api import sync_playwright   # بنستورد Playwright اللي بيشغّل المتصفح
 import csv                                         # بنستورد CSV عشان نحفظ البيانات في ملف
 import time                                        # بنستورد time عشان نستخدم sleep
@@ -149,4 +150,5 @@ def main():
     save_to_csv(all_products, f"noon_{query}.csv")  # نحفظ الملف
 
 if __name__ == "__main__":                          # لو الملف اتشغّل كبرنامج
-    main()                                          # نشغّل الدالة الرئيسية
+    main()                                        # نشغل الدالة الرئيسية
+
