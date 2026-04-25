@@ -1,133 +1,146 @@
 import requests
 from bs4 import BeautifulSoup
 import pandas as pd
-import re
-import time
 import random
+import time
+import os
 import logging
-from datetime import datetime
-from fake_useragent import UserAgent
-import sys
-import io
 
-# إصلاح مشكلة اللغة العربية في الـ Terminal
-sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
+# إعدادات اللوج
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
-# --- 1. CONFIGURATION ---
-CONFIG = {
-    "BASE_URL": "https://www.amazon.eg",
-    "QUERIES": [
-    "makeup", "skin care", "sunblock", "perfume", "hair care", 
-    "moisturizer", "serum", "mascara", "shampoo", "foundation"
-],
-    "PAGES_PER_QUERY": 20,
-    "DELAY_RANGE": (5, 8),
-    "OUTPUT_FILE": f"beauty_market_data_{datetime.now().strftime('%Y%m%d')}.csv",
-    "MIN_PRICE": 50.0 
-}
-
-BRANDS = [
-    "L'Oreal", "Maybelline", "Vichy", "La Roche-Posay", "CeraVe", 
-    "Garnier", "Nivea", "Neutrogena", "Eucerin", "Bioderma", 
-    "The Ordinary", "Beesline", "Eva", "Amanda", "Sheglam", 
-    "Luna", "Cybele", "Ciao", "Golden Rose", "Kiko", "NYX", 
-    "Dior", "Chanel", "Essence", "Catrice", "Vichy"
+USER_AGENTS = [
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
 ]
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s',
-    handlers=[logging.StreamHandler()]
-)
 
-class PulseBeautyScraper:
-    def __init__(self):
-        self.ua = UserAgent()
-        self.session = requests.Session()
-        self.results = []
+TRUSTED_BRANDS = [
+    "samsung", "apple", "iphone", "google", "pixel",
+    "motorola", "moto", "oneplus", "xiaomi", "redmi",
+    "realme", "nokia", "sony", "huawei", "nothing",
+    "blu", "tcl", "blackview", "ulefone", "oukitel",
+    "doogee", "unihertz", "fossibot", "cubot", "zte",
+    "oppo", "vivo", "umidigi", "hmd", "lively",
+    "8849", "cat phone", "nuu", "tracfone", "htc"
+]
 
-    def get_headers(self):
-        return {
-            "User-Agent": self.ua.random,
-            "Accept-Language": "en-US,en;q=0.9,ar-EG;q=0.8",
-            "Accept-Encoding": "gzip, deflate, br",
-            "Referer": "https://www.google.com/",
-            "Connection": "keep-alive"
-        }
+EXCLUDED_KEYWORDS = [
+    "screen protector", "case", "cover", "charger",
+    "cable", "adapter", "glass", "tempered",
+    "tripod", "gimbal", "stabilizer", "holder",
+    "mount", "flash drive", "usb drive", "watch",
+    "smartwatch", "printer", "scale", "tablet",
+    "telescope", "breathalyzer", "microphone",
+    "lanyard", "wallet", "strap", "book", "guide",
+    "lens protector", "camera lens", "car mount",
+    "phone case", "bumper", "pouch", "speakerphone",
+    "prompter", "ssd", "scuba", "housing"
+]
 
-    def detect_brand(self, title):
-        for brand in BRANDS:
-            if brand.lower() in title.lower():
-                return brand
-        return "Generic/Other"
+def get_headers():
+    return {
+        "User-Agent": random.choice(USER_AGENTS),
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+        "Accept-Language": "en-US,en;q=0.5",
+        "Accept-Encoding": "gzip, deflate, br",
+        "Connection": "keep-alive",
+        "Upgrade-Insecure-Requests": "1"
+    }
 
-    def clean_price(self, price_str):
-        if not price_str: return 0.0
+def fetch_page(session, url):
+    for attempt in range(3):
         try:
-            clean_val = re.sub(r'[^\d.]', '', price_str.replace(',', ''))
-            return float(clean_val)
-        except: return 0.0
+            response = session.get(url, headers=get_headers(), timeout=30)
+            if response.status_code == 200:
+                return response
+            logging.warning(f"Attempt {attempt+1} failed: {response.status_code}")
+            time.sleep(random.uniform(5, 10))
+        except Exception as e:
+            logging.error(f"Attempt {attempt+1} error: {e}")
+            time.sleep(random.uniform(5, 10))
+    return None
 
-    def parse_product(self, item, category):
-        try:
-            name_tag = item.select_one('h2 a span') or item.select_one('.a-size-base-plus')
-            if not name_tag: return None
-            title = name_tag.text.strip()
+def start_scraping(category_name, source_name, url, pages):
+    session = requests.Session()
+    dataset = []
 
-            price_tag = item.select_one('.a-price .a-offscreen') or item.select_one('.a-price-whole')
-            price = self.clean_price(price_tag.text) if price_tag else 0.0
+    for page in range(1, pages + 1):
+        logging.info(f"Scraping {source_name} - Page {page}")
 
-            if price < CONFIG["MIN_PRICE"]: return None
+        if source_name == "amazon":
+            page_url = f"{url}&page={page}"
+        else:
+            page_url = f"{url}&p={page}" if "?" in url else f"{url}?p={page}"
 
-            rating_tag = item.select_one('i.a-icon-star-small span.a-icon-alt') or item.select_one('.a-icon-alt')
-            rating = rating_tag.text.split()[0] if rating_tag else "0"
+        response = fetch_page(session, page_url)
 
-            return {
-                "Category": category,
-                "Brand": self.detect_brand(title),
-                "Title": title,
-                "Price_EGP": price,
-                "Rating": float(rating) if rating != "0" else 0.0,
-                "Scraped_At": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            }
-        except: return None
+        if not response:
+            logging.warning(f"Skipping page {page} after 3 failed attempts.")
+            continue
 
-    def run(self):
-        logging.info("🚀 Starting Pulse Beauty Engine...")
-        
-        for query in CONFIG["QUERIES"]:
-            logging.info(f"🔎 Scraping Category: {query}")
-            for page in range(1, CONFIG["PAGES_PER_QUERY"] + 1):
-                url = f"{CONFIG['BASE_URL']}/s?k={query.replace(' ', '+')}&page={page}"
-                try:
-                    response = self.session.get(url, headers=self.get_headers(), timeout=20)
-                    if response.status_code == 200:
-                        soup = BeautifulSoup(response.content, "html.parser")
-                        items = soup.select('div[data-component-type="s-search-result"], .s-result-item[data-asin]')
-                        
-                        count = 0
-                        for item in items:
-                            product = self.parse_product(item, query)
-                            if product:
-                                self.results.append(product)
-                                count += 1
-                        
-                        logging.info(f"✅ Page {page}: Extracted {count} items.")
-                        time.sleep(random.uniform(*CONFIG["DELAY_RANGE"]))
-                    else:
-                        logging.warning(f"⚠️ Page {page} failed with status {response.status_code}")
-                except Exception as e:
-                    logging.error(f"❌ Error: {e}")
+        soup = BeautifulSoup(response.content, "html.parser")
 
-        self.export_data()
+        if source_name == "amazon":
+            items = soup.find_all("div", {"data-component-type": "s-search-result"})
+        elif source_name == "noon":
+            items = soup.find_all("div", {"class": "productContainer"}) or soup.find_all("a", href=True)
+        else:
+            items = []
 
-    def export_data(self):
-        if not self.results:
-            logging.error("No data collected.")
-            return
-        df = pd.DataFrame(self.results).drop_duplicates(subset=['Title'])
-        df.to_csv(CONFIG["OUTPUT_FILE"], index=False, encoding="utf-8-sig")
-        logging.info(f"🎯 DONE! Saved {len(df)} Unique Beauty Products to {CONFIG['OUTPUT_FILE']}")
+        for item in items:
+            try:
+                if source_name == "amazon":
+                    name = item.h2.text.strip() if item.h2 else ""
+                    price = item.find("span", "a-price-whole").text.replace(",", "") if item.find("span", "a-price-whole") else "0"
+                    rating_tag = item.find("span", "a-icon-alt")
+                    rating = rating_tag.text.split()[0] if rating_tag else "0"
+
+                elif source_name == "noon":
+                    name_tag = item.find("div", {"data-qa": "product-name"}) or item.find("div", {"class": "name"})
+                    price_tag = item.find("strong", {"class": "amount"}) or item.find("span", {"class": "priceNow"})
+                    rating_tag = item.find("div", {"class": "stars"}) or item.find("span", {"class": "rating"})
+                    if not name_tag:
+                        continue
+                    name = name_tag.text.strip()
+                    price = price_tag.text.strip().replace("EGP", "").replace(",", "") if price_tag else "0"
+                    rating = rating_tag.text.strip() if rating_tag else "0"
+
+                name_lower = name.lower()
+
+                if not any(brand in name_lower for brand in TRUSTED_BRANDS):
+                    continue
+
+                if any(keyword in name_lower for keyword in EXCLUDED_KEYWORDS):
+                    continue
+
+                dataset.append({
+                    "Category": category_name,
+                    "Product_Name": name,
+                    "Price": price,
+                    "Rating": rating,
+                    "Source": source_name,
+                    "Scraped_At": time.strftime("%Y-%m-%d %H:%M:%S")
+                })
+
+            except:
+                continue
+
+        logging.info(f"Page {page} processed. Found {len(dataset)} items so far.")
+        time.sleep(random.uniform(7, 12))
+
+    if dataset:
+        df = pd.DataFrame(dataset)
+        filename = f"raw_{source_name}_{category_name}.csv"
+        df.to_csv(filename, mode="a", index=False, header=not os.path.exists(filename), encoding="utf-8-sig")
+        logging.info(f"Saved {len(df)} records to {filename}")
+    else:
+        logging.warning("No data collected. Site might be blocking Python requests.")
 
 if __name__ == "__main__":
-    scraper = PulseBeautyScraper()
-    scraper.run()
+    print("\n=== PULSE DATA ENGINE ===\n")
+    source = input("Source (amazon/noon): ").lower().strip()
+    cat = input("Category: ").lower().strip()
+    search_url = input("URL: ").strip()
+    p_count = int(input("Pages: "))
+    start_scraping(cat, source, search_url, p_count)
