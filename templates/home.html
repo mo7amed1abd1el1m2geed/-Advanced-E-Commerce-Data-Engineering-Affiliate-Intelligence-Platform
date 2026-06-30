@@ -1,0 +1,47 @@
+{% extends 'layouts/blank.html' %}
+
+{% block content %}
+
+<div class="min-h-screen bg-gradient-to-b from-[#1e2a3b] to-[#0f172a] text-white flex flex-col items-center py-20 px-4">
+  
+  <div class="max-w-4xl w-full flex flex-col items-center text-center">
+    <div class="border border-blue-500/30 bg-blue-500/10 rounded-full px-4 py-1 text-sm text-blue-300 mb-6">
+      ⚡ Best affiliate deals, curated daily
+    </div>
+
+    <h1 class="text-6xl font-extrabold mb-6 leading-tight">Find the best deals<br>across top stores</h1>
+    
+    <p class="text-xl text-gray-400 mb-10 max-w-2xl">Compare prices, earn cashback, and shop smarter with our curated affiliate picks</p>
+
+    <div class="flex gap-4 mb-20">
+      <a href="{% url 'products:categories' %}" class="bg-blue-600 hover:bg-blue-700 px-8 py-3 rounded-xl flex items-center gap-2 transition-all shadow-lg shadow-blue-600/20">
+        🛒 Browse Deals
+      </a>
+    </div>
+  </div>
+
+  <div class="max-w-5xl w-full mt-16 bg-white/5 backdrop-blur-md border border-white/10 p-8 rounded-3xl grid grid-cols-2 md:grid-cols-4 gap-8">
+    
+    <div class="text-center">
+        <div class="text-3xl font-bold text-blue-400 mb-1">24K+</div>
+        <div class="text-sm font-medium text-gray-300">Products listed</div>
+    </div>
+    
+    <div class="text-center">
+        <div class="text-3xl font-bold text-blue-400 mb-1">200+</div>
+        <div class="text-sm font-medium text-gray-300">Partner stores</div>
+    </div>
+    
+    <div class="text-center">
+        <div class="text-3xl font-bold text-blue-400 mb-1">30%</div>
+        <div class="text-sm font-medium text-gray-300">Cashback</div>
+    </div>
+    
+    <div class="text-center">
+        <div class="text-3xl font-bold text-blue-400 mb-1">4.8★</div>
+        <div class="text-sm font-medium text-gray-300">Rating</div>
+    </div>
+</div>
+</div>
+
+{% endblock %}

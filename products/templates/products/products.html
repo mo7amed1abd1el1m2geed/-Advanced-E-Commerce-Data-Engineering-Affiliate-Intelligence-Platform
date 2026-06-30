@@ -1,0 +1,125 @@
+{% extends 'layouts/blank.html' %}
+
+{% block content %}
+
+<div class="bg-gray-50 min-h-screen py-16 px-6">
+
+    <h1 class="text-4xl font-extrabold text-center text-gray-900 mb-3">
+        {{ category.name }}
+    </h1>
+
+    <p class="text-center text-gray-500 mb-10">
+        Browse all products in this category
+    </p>
+
+    <!-- Search -->
+
+    <div class="max-w-4xl mx-auto mb-12">
+
+        <form method="GET">
+
+            <input
+                type="text"
+                name="search"
+                value="{{ search }}"
+                placeholder="Search product..."
+                class="w-full px-5 py-3 border rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+
+        </form>
+
+    </div>
+
+    <!-- Products -->
+
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8 max-w-7xl mx-auto">
+
+        {% for product in page_obj %}
+
+        <a href="{% url 'products:product' product.pk %}"
+           class="group bg-gray-900 rounded-3xl overflow-hidden shadow-lg hover:shadow-2xl transition-all duration-300 hover:-translate-y-2">
+
+            <div class="aspect-square overflow-hidden bg-white">
+
+                <img src="{{ product.image_url }}"
+                     alt="{{ product.name }}"
+                     class="w-full h-full object-contain transition duration-500 group-hover:scale-110">
+
+            </div>
+
+            <div class="p-5">
+
+                <h2 class="text-white font-semibold line-clamp-2 h-14">
+                    {{ product.name }}
+                </h2>
+
+                <div class="mt-4 flex justify-between items-center">
+
+                    <span class="text-green-400 font-bold text-lg">
+
+                        ${{ product.price }}
+
+                    </span>
+
+                    <span class="text-yellow-400">
+
+                        ⭐ {{ product.rating }}
+
+                    </span>
+
+                </div>
+
+            </div>
+
+        </a>
+
+        {% empty %}
+
+        <div class="col-span-full text-center text-gray-500 text-xl">
+
+            No products found.
+
+        </div>
+
+        {% endfor %}
+
+    </div>
+
+    <!-- Pagination -->
+
+    <div class="flex justify-center items-center gap-3 mt-14">
+
+        {% if page_obj.has_previous %}
+
+        <a
+            href="?page={{ page_obj.previous_page_number }}&search={{ search }}"
+            class="px-4 py-2 bg-gray-900 text-white rounded-xl hover:bg-gray-800">
+
+            Previous
+
+        </a>
+
+        {% endif %}
+
+        <span class="font-semibold">
+
+            {{ page_obj.number }} / {{ page_obj.paginator.num_pages }}
+
+        </span>
+
+        {% if page_obj.has_next %}
+
+        <a
+            href="?page={{ page_obj.next_page_number }}&search={{ search }}"
+            class="px-4 py-2 bg-gray-900 text-white rounded-xl hover:bg-gray-800">
+
+            Next
+
+        </a>
+
+        {% endif %}
+
+    </div>
+
+</div>
+
+{% endblock %}
