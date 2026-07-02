@@ -10,63 +10,83 @@
 
             <div class="grid md:grid-cols-2">
 
-                <!-- Image -->
-
-                <div class="p-10 flex justify-center items-center bg-gray-100">
+                <!-- Product Image -->
+                <div class="bg-gray-100 flex items-center justify-center p-10">
 
                     <img
                         src="{{ product.image_url }}"
                         alt="{{ product.name }}"
-                        class="max-h-[500px] object-contain">
+                        class="max-h-[500px] w-full object-contain transition-transform duration-300 hover:scale-105">
 
                 </div>
 
-                <!-- Details -->
-
+                <!-- Product Details -->
                 <div class="p-10 flex flex-col justify-center">
 
-                    <span class="text-sm text-gray-500 uppercase">
-
+                    <span class="text-sm font-semibold uppercase tracking-wider text-gray-500">
                         {{ product.category.name }}
-
                     </span>
 
-                    <h1 class="text-4xl font-extrabold mt-2">
-
+                    <h1 class="text-4xl font-extrabold text-gray-900 mt-2">
                         {{ product.name }}
-
                     </h1>
 
-                    <div class="mt-6 flex items-center gap-8">
-
-                        <span class="text-4xl font-bold text-green-600">
-
-                            ${{ product.price }}
-
-                        </span>
-
-                        <span class="text-2xl text-yellow-500">
-
+                    <!-- Rating -->
+                    <div class="mt-6">
+                        <span class="inline-flex items-center gap-2 bg-yellow-100 text-yellow-700 px-4 py-2 rounded-full font-semibold">
                             ⭐ {{ product.rating }}
-
                         </span>
+                    </div>
+
+                    <!-- Prices -->
+                    <div class="mt-8 space-y-5">
+
+                        <div class="flex items-center justify-between bg-gray-100 rounded-2xl p-5">
+                            <span class="font-semibold text-gray-700">
+                                Amazon Price
+                            </span>
+
+                            <span class="text-3xl font-bold text-green-600">
+                                EGP:  {{ product.amazon_price }}
+                            </span>
+                        </div>
+
+                        <div class="flex items-center justify-between bg-gray-100 rounded-2xl p-5">
+                            <span class="font-semibold text-gray-700">
+                                Noon Price
+                            </span>
+
+                            <span class="text-3xl font-bold text-green-600">
+                                EGP:  {{ product.noon_price }}
+                            </span>
+                        </div>
 
                     </div>
 
-                    <div class="mt-10 flex gap-4">
+                    <!-- Buttons -->
+                    <div class="mt-10 grid sm:grid-cols-3 gap-4">
 
                         <a
-                            href="{{ product.product_url }}"
+                            href="{{ product.amazon_product_url }}"
                             target="_blank"
-                            class="px-6 py-3 bg-gray-900 text-white rounded-xl hover:bg-gray-800">
+                            class="text-center px-6 py-3 bg-gray-900 text-white rounded-xl hover:bg-gray-800 transition">
 
-                            View Original
+                            View on Amazon
+
+                        </a>
+
+                        <a
+                            href="{{ product.noon_product_url }}"
+                            target="_blank"
+                            class="text-center px-6 py-3 bg-gray-900 text-white rounded-xl hover:bg-gray-800 transition">
+
+                            View on Noon
 
                         </a>
 
                         <a
                             href="{% url 'products:products' product.category.pk %}"
-                            class="px-6 py-3 border rounded-xl hover:bg-gray-100">
+                            class="text-center px-6 py-3 border border-gray-300 rounded-xl hover:bg-gray-100 transition">
 
                             Back
 
