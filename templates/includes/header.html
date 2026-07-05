@@ -1,36 +1,48 @@
-<header class="flex items-center justify-between bg-[#0f172a] border-b border-gray-800 h-20 px-8 text-white sticky top-0 z-40">            <a class="flex items-center gap-2" href="/">
-                <img class="h-6" src="/static/images/logo.png" alt="Logo"/>
-                <span class="text-lg font-bold">Advanced E-Commerce</span>
-            </a>
-        </div>
-        <nav class="flex items-center justify-between bg-gray-900/90 backdrop-blur-sm border-b border-gray-700 h-20 px-8 text-white sticky top-0 z-40 shadow-xl">
-            <ul class="navitems flex items-center justify-center h-full">
-                {% if request.user.is_authenticated %}
-                <li><a href="/">Home</a></li>
+<header class="flex items-center justify-between bg-[#0f172a]/90 backdrop-blur-sm border-b border-gray-700 h-20 px-8 text-white sticky top-0 z-40 shadow-xl">
+    <!-- شعار الموقع -->
+    <a class="flex items-center gap-2" href="/">
+        <img class="h-8" src="/static/images/logo.png" alt="Logo"/>
+        <span class="text-lg font-bold">Advanced E-Commerce</span>
+    </a>
+
+    <!-- القائمة (Navigation) -->
+    <nav>
+        <ul class="flex items-center gap-8">
+            {% if request.user.is_authenticated %}
+                <li><a href="/" class="hover:text-blue-400 transition-colors">Home</a></li>
+                
+                <!-- قائمة المستخدم المنسدلة -->
                 <li x-data="{ dropdownOpen: false }" class="relative">
-                    <a @click="dropdownOpen = !dropdownOpen" @click.away="dropdownOpen = false" class="cursor-pointer select-none">
-                        <img class="h-8 w-8 rounded-full object-cover" src="{{user.profile.avatar}}"/>
-                        {{user.profile.name}}
-                        <img x-bind:class="dropdownOpen && 'rotate-180 duration-300'" class="w-4" src="https://img.icons8.com/small/32/777777/expand-arrow.png"/>
-                    </a>
-                    <div x-show="dropdownOpen" x-cloak class="absolute right-0 bg-white text-black shadow rounded-lg w-40 p-2 z-20"
-                    x-transition:enter="duration-300 ease-out"
-                    x-transition:enter-start="opacity-0 -translate-y-5 scale-90"
-                    x-transition:enter-end="opacity-100 translate-y-0 scale-100"
-                    >
-                        <ul class="hoverlist [&>li>a]:justify-end">
-                            <li><a href="{% url 'profile' %}" >My Profile</a></li>
-                            <li><a href="{% url 'profile-edit' %}">Edit Profile</a></li>
-			    <li><a href="{%url 'profile-settings' %}">Settings</a></li>
-                            <li><a href="{% url 'account_logout' %}">Log Out</a></li>
+                    <div @click="dropdownOpen = !dropdownOpen" @click.away="dropdownOpen = false" class="flex items-center gap-2 cursor-pointer select-none">
+                        <img class="h-9 w-9 rounded-full object-cover border border-gray-600" src="{{user.profile.avatar}}"/>
+                        <span class="font-medium">{{user.profile.name}}</span>
+                        <img x-bind:class="dropdownOpen ? 'rotate-180 duration-300' : 'duration-300'" class="w-4" src="https://img.icons8.com/small/32/ffffff/expand-arrow.png"/>
+                    </div>
+                    
+                    <div x-show="dropdownOpen" x-cloak 
+                         class="absolute right-0 top-12 bg-white text-black shadow-xl rounded-lg w-44 py-2 z-50 border border-gray-100"
+                         x-transition:enter="duration-300 ease-out"
+                         x-transition:enter-start="opacity-0 -translate-y-2"
+                         x-transition:enter-end="opacity-100 translate-y-0">
+                        <ul class="flex flex-col">
+                            <li><a href="{% url 'profile' %}" class="block px-4 py-2 hover:bg-gray-100">My Profile</a></li>
+                            <li><a href="{% url 'profile-edit' %}" class="block px-4 py-2 hover:bg-gray-100">Edit Profile</a></li>
+                            <li><a href="{% url 'profile-settings' %}" class="block px-4 py-2 hover:bg-gray-100">Settings</a></li>
+                            <li class="border-t mt-1 pt-1"><a href="{% url 'account_logout' %}" class="block px-4 py-2 text-red-600 hover:bg-red-50">Log Out</a></li>
                         </ul>
                     </div>
                 </li>
-                
-                {% else %}
-		<li><a href="{% url 'account_login' %}">Login</a></li>
-                <li><a href="{% url 'account_signup' %}?next={%url 'profile-onboarding' %}">Signup</a></li>
-                {% endif %}
-            </ul>
-        </nav>
-    </header>
+            {% else %}
+                <li><a href="{% url 'account_login' %}" class="hover:text-blue-400 transition-colors">Login</a></li>
+                <li><a href="{% url 'account_signup' %}?next={%url 'profile-onboarding' %}" class="bg-blue-600 px-5 py-2.5 rounded-lg hover:bg-blue-700 transition-all font-semibold">Signup</a></li>
+            {% endif %}
+            
+            <!-- زر السلة المحدث -->
+            <li>
+                <a href="{% url 'products:cart_view' %}" class="group relative flex items-center justify-center p-3 transition-all duration-300 hover:bg-white/10 rounded-full">
+                    <img src="/static/images/cart.png" alt="Cart" class="h-8 w-8 transition-transform duration-300 group-hover:scale-110">
+                </a>
+            </li>
+        </ul>
+    </nav>
+</header>

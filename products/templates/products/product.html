@@ -92,6 +92,24 @@
 
                         </a>
 
+                           {% if cart_item %}
+                        <form method="POST" action="{% url 'products:remove_from_cart' cart_item.id %}">
+                            {% csrf_token %}
+                            <!-- زر الحذف باللون الأحمر -->
+                            <button type="submit" class="bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded transition duration-300">
+                                Remove From Cart
+                            </button>
+                        </form>
+                    {% else %}
+                        <form method="POST" action="{% url 'products:add_to_cart' product.id %}">
+                            {% csrf_token %}
+                            <!-- زر الإضافة بلون مختلف (مثلاً أزرق) -->
+                            <button type="submit" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded transition duration-300">
+                                Add To Cart
+                            </button>
+                        </form>
+                    {% endif %}
+
                     </div>
 
                 </div>
