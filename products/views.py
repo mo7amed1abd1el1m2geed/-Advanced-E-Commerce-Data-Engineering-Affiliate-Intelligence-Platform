@@ -27,7 +27,7 @@ def categories(request):
         },
     )
 
-
+@login_required
 def product(request, pk):
     product = get_object_or_404(Product, pk=pk)
     cart = get_cart(request)
